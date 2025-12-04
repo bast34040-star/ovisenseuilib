@@ -828,20 +828,6 @@ function library:init()
     function self:SetOpen(bool)
         self.open = bool;
         screenGui.Enabled = bool;
-
-        if bool and library.flags.disablemenumovement then
-            actionservice:BindAction(
-                'FreezeMovement',
-                function()
-                    return Enum.ContextActionResult.Sink
-                end,
-                false,
-                unpack(Enum.PlayerActions:GetEnumItems())
-            )
-        else
-            actionservice:UnbindAction('FreezeMovement');
-        end
-
         updateCursor();
         for _,window in next, self.windows do
             window:SetOpen(bool);
@@ -1032,6 +1018,36 @@ function library:init()
                 Outline = true;
                 Parent = objs.background;
             });
+            
+            -- Indicator Drag
+            objs.dragDetector = utility:Draw('Square', {
+                Size = newUDim2(1,0,0,16);
+                Transparency = 0;
+                ZIndex = z+5;
+                Parent = objs.background;
+            })
+            
+            local dragging = false
+            local dragStart = nil
+            local startPos = nil
+            
+            utility:Connection(objs.dragDetector.MouseButton1Down, function(pos)
+                dragging = true
+                dragStart = pos
+                startPos = indicator.position
+            end)
+            
+            utility:Connection(button1up, function()
+                dragging = false
+            end)
+            
+            utility:Connection(mousemove, function(pos)
+                if dragging then
+                    local delta = pos - dragStart
+                    indicator.position = startPos + newUDim2(0, delta.X, 0, delta.Y)
+                    objs.background.Position = indicator.position
+                end
+            end)
 
         end
         --------------------
@@ -3857,16 +3873,7 @@ function library:init()
                         utility:Connection(objs.holder.MouseButton1Down, function()
                             if box.focused then
                                 box:ReleaseFocus();
-                                actionservice:UnbindAction('FreezeMovement');
                             else
-                                actionservice:BindAction(
-                                    'FreezeMovement',
-                                    function()
-                                        return Enum.ContextActionResult.Sink
-                                    end,
-                                    false,
-                                    unpack(Enum.PlayerActions:GetEnumItems())
-                                )
                                 box:CaptureFocus(inputservice:IsKeyDown(Enum.KeyCode.LeftControl));
                                 if inputservice:IsKeyDown(Enum.KeyCode.LeftControl) then
                                     objs.inputText.Text = '';
@@ -4571,12 +4578,15 @@ function library:init()
             objects = {};
             text = {
                 {"ovisense", true},
-                {"v3.0", true},
+                {"beta", true},
                 {'0 fps', true},
                 {'0ms', true},
             };
-            lock = 'Top Left';
-            position = newUDim2(0,0,0,0);
+            lock = 'Custom';
+            dragging = false;
+            dragStart = nil;
+            startPos = nil;
+            position = newUDim2(0,15,0,15);
             refreshrate = 25;
         }
 
@@ -4599,16 +4609,17 @@ function library:init()
                 local size = self.objects.background.Object.Size;
                 local screensize = workspace.CurrentCamera.ViewportSize;
 
-                self.position = (
-                    self.lock == 'Top Right' and newUDim2(0, screensize.X - size.X - 15, 0, 15) or
-                    self.lock == 'Top Left' and newUDim2(0, 15, 0, 15) or
-                    self.lock == 'Bottom Right' and newUDim2(0, screensize.X - size.X - 15, 0, screensize.Y - size.Y - 15) or
-                    self.lock == 'Bottom Left' and newUDim2(0, 15, 0, screensize.Y - size.Y - 15) or
-                    self.lock == 'Top' and newUDim2(0, screensize.X / 2 - size.X / 2, 0, 15) or
-                    newUDim2(0, 15, 0, 15)
-                )
-
-                self.objects.background.Position = self.position
+                if self.lock ~= 'Custom' then
+                    self.position = (
+                        self.lock == 'Top Right' and newUDim2(0, screensize.X - size.X - 15, 0, 15) or
+                        self.lock == 'Top Left' and newUDim2(0, 15, 0, 15) or
+                        self.lock == 'Bottom Right' and newUDim2(0, screensize.X - size.X - 15, 0, screensize.Y - size.Y - 15) or
+                        self.lock == 'Bottom Left' and newUDim2(0, 15, 0, screensize.Y - size.Y - 15) or
+                        self.lock == 'Top' and newUDim2(0, screensize.X / 2 - size.X / 2, 0, 15) or
+                        newUDim2(0, 15, 0, 15)
+                    )
+                    self.objects.background.Position = self.position
+                end
             end
         end
 
@@ -4619,7 +4630,7 @@ function library:init()
             objs.background = utility:Draw('Square', {
                 Visible = false;
                 Size = newUDim2(0, 200, 0, 17);
-                Position = newUDim2(0,800,0,100);
+                Position = newUDim2(0,15,0,15);
                 ThemeColor = 'Background';
                 ZIndex = z;
             })
@@ -4658,6 +4669,32 @@ function library:init()
                 Center = true;
                 Parent = objs.background;
             })
+            
+            -- Watermark Drag
+            objs.dragDetector = utility:Draw('Square', {
+                Size = newUDim2(1,0,1,0);
+                Transparency = 0;
+                ZIndex = z+5;
+                Parent = objs.background;
+            })
+            
+            utility:Connection(objs.dragDetector.MouseButton1Down, function(pos)
+                self.watermark.dragging = true
+                self.watermark.dragStart = pos
+                self.watermark.startPos = objs.background.Position
+            end)
+            
+            utility:Connection(button1up, function()
+                self.watermark.dragging = false
+            end)
+            
+            utility:Connection(mousemove, function(pos)
+                if self.watermark.dragging and self.watermark.lock == 'Custom' then
+                    local delta = pos - self.watermark.dragStart
+                    objs.background.Position = self.watermark.startPos + newUDim2(0, delta.X, 0, delta.Y)
+                    self.watermark.position = objs.background.Position
+                end
+            end)
 
         end
     end
@@ -4734,7 +4771,6 @@ function library:CreateSettingsTab(menu)
         library:SetOpen(not library.open)
     end});
 
-    mainSection:AddToggle({text = 'Disable Movement If Open', flag = 'disablemenumovement', state = false})
 
     mainSection:AddButton({text = 'Rejoin Server', confirm = true, callback = function()
         game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId);
@@ -4761,7 +4797,7 @@ function library:CreateSettingsTab(menu)
 
     mainSection:AddToggle({text = 'Watermark', flag = 'watermark_enabled', state = true});
     
-    mainSection:AddList({text = 'Position', flag = 'watermark_pos', values = {"Top Left", "Top", "Top Right", "Bottom Left", "Bottom Right"}, selected = "Top Left", callback = function(val)
+    mainSection:AddList({text = 'Position', flag = 'watermark_pos', values = {"Custom", "Top Left", "Top", "Top Right", "Bottom Left", "Bottom Right"}, selected = "Custom", callback = function(val)
         library.watermark.lock = val
     end});
 
