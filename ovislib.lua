@@ -704,14 +704,7 @@ function library:init()
         -- No custom cursor
     end
 
-    local screenGui = Instance.new('ScreenGui');
-    if syn then syn.protect_gui(screenGui); end
-    screenGui.Parent = game:GetService('CoreGui');
-    screenGui.Enabled = true;
-
-    utility:Connection(library.unloaded, function()
-        screenGui:Destroy()
-    end)
+    -- No ScreenGui needed (allows game input)
 
     utility:Connection(inputservice.InputBegan, function(input, gpe)
         if self.hasInit then
@@ -808,7 +801,6 @@ function library:init()
     
     function self:SetOpen(bool)
         self.open = bool;
-        screenGui.Enabled = bool;
         updateCursor();
         for _,window in next, self.windows do
             window:SetOpen(bool);
